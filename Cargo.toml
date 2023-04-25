@@ -1,0 +1,7 @@
+[workspace]
+
+members = [
+    "git-archive-branch",
+    "git-archive-remote-branch",
+    "git-show-old-branches"
+]
