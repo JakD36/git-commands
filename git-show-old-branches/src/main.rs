@@ -1,6 +1,5 @@
 use std::process;
 use std::collections::HashMap;
-use std::process::Stdio;
 use clap::{Parser, ValueEnum};
 use chrono::prelude::*;
 use chrono::Duration;
@@ -42,56 +41,65 @@ fn main()
     let git_path = git_path.expect("Not a supported platform");
     
     let args = CliInputs::parse();
-    let remote_branches = get_remote_branches(git_path, &args.branch, args.mode);
-    
-    let remote_branches : Vec<&str> = if args.exclude.is_some() 
-    { 
-        let exclude_start_with = args.exclude.unwrap(); 
-        remote_branches.lines()
-            .filter_map(|x|
-                {
-                    let trimmed = x.trim();
-                    for exclusion in &exclude_start_with
-                    {
-                        if trimmed.starts_with(exclusion) && trimmed.contains("HEAD") == false
-                        {
-                            return Some(trimmed);
-                        }
-                    }
-                    return None;
-                })
-            .collect() 
-    } 
-    else 
-    { 
-        remote_branches.lines()
-            .filter_map(|x| 
-                { 
-                    let trimmed = x.trim();
-                    if trimmed.contains("HEAD") == false {Some(trimmed)} else { None }
-                })
-            .collect()
+
+    let mode_str = match args.mode
+    {
+        Mode::Merged => "--merged",
+        Mode::NoMerge => "--no-merge"
     };
     
+    let stdout = process::Command::new(git_path)
+        .arg("for-each-ref")
+        .arg("--format=%(refname:short)//%(authordate:iso)//%(authorname)")
+        .arg("refs/remotes")
+        .arg(mode_str)
+        .arg(args.branch)
+        .output().expect("Failed to run git for-each-ref")
+        .stdout;
+    let output = String::from_utf8_lossy(&stdout).to_string();
     let earliest_time = Utc::now().checked_sub_signed(Duration::days(args.days)).expect(format!("Failed to calculate a date {} back", args.days).as_str());
+
+    let exclude_start_with = args.exclude;
     
-    // Find the time of the last commit on each branch and the author of said commit
-    let branch_vec = remote_branches.into_par_iter().filter_map(|branch|
+    let commits = output.par_lines()
+        .filter_map(|x|
         {
-            let last_commit_time = get_branch_last_commit_time(git_path, branch);
-            if last_commit_time < earliest_time
+            let mut split = x.split("//");
+            
+            let branch = split.next().expect("Failed to split branch name from for-each-ref output");
+            
+            let excluded = if exclude_start_with.as_ref().is_some()
             {
-                let author = get_author_of_last_commit(git_path, branch);
-                Some((branch, author))
-            }    
-            else
+                exclude_start_with.as_ref().unwrap().iter().any(|x| branch.starts_with(x))
+            }
+            else { false };
+            
+            if excluded == false
+            {
+                let datetime = split.next().expect("Failed to split datetime from for-each-ref output");
+                let datetime = DateTime::parse_from_str(&datetime, "%Y-%m-%d %H:%M:%S %z")
+                    .expect(format!("Failed to parse datetime {}", &datetime).as_str());
+                let datetime = datetime.with_timezone(&Utc);
+
+                if datetime < earliest_time
+                {
+                    let author = split.next().expect("Failed to split author name from for-each-ref output");
+                    Some((branch, author))    
+                }
+                else 
+                { 
+                    None
+                }
+            }
+            else 
             {
                 None
             }
         });
-
+    
+    
     let mut author_to_branches = HashMap::<String, Vec<&str>>::new();
-    for (branch, author) in branch_vec.collect::<Vec<(&str, String)>>().iter() 
+    for (branch, author) in commits.collect::<Vec<(&str, &str)>>().iter()
     {
         author_to_branches.entry(author.to_string())
             .and_modify(|x| x.push(branch))
@@ -103,7 +111,6 @@ fn main()
         println!("No Branches were found older than {} days with the given criteria.", args.days);
         return;
     }
-    
     
     // Create our report
     let total_branches_found : usize = author_to_branches.iter().map(|(_, val)| val.len() ).sum();
@@ -122,59 +129,4 @@ fn main()
             .expect("Failed to write to stdout");
     }
     handle.flush().expect("Failed to flush to stdout");
-}
-
-fn get_remote_branches(git_path: &str, target_branch: &str, mode: Mode) -> String
-{
-    let mode_str = match mode 
-    {
-        Mode::Merged => "--merged",
-        Mode::NoMerge => "--no-merge"
-    };
-    
-    let stdout = process::Command::new(git_path)
-        .arg("branch")
-        .arg(mode_str)
-        .arg(target_branch)
-        .arg("-r")
-        .output().expect("Failed to get the remote branches")
-        .stdout;
-
-    return String::from_utf8_lossy(&stdout).to_string();
-}
-
-fn get_branch_last_commit_time(git_path: &str, branch: &str) -> DateTime<Utc>
-{
-    let mut process = process::Command::new(git_path)
-        .arg("show")
-        .arg("--format=\"%ci\"")
-        .arg(branch)
-        .stdout(Stdio::piped())
-        .spawn().expect("Failed to spawn git command to find last commit time");
-    
-    let show_output = process.stdout.take().expect("Git show provided no output");
-    
-    let head_output = process::Command::new("head")
-        .arg("-n")
-        .arg("1")
-        .stdin(show_output)
-        .output().expect(format!("Failed to get last commit time for branch {}", branch).as_str()).stdout;
-
-    let datetime = String::from_utf8_lossy(&head_output).to_string();
-    let len = datetime.trim().len();
-    
-    let datetime = DateTime::parse_from_str(&datetime[1..len-1], "%Y-%m-%d %H:%M:%S %z").expect(format!("Failed to parse datetime {}", &datetime[1..len-1]).as_str());
-    datetime.with_timezone(&Utc)
-}
-
-fn get_author_of_last_commit(git_path: &str, branch: &str) -> String
-{
-    let stdout = process::Command::new(git_path)
-        .arg("log")
-        .arg("-1")
-        .arg("--pretty=format:%an")
-        .arg(branch)
-        .output().expect(format!("Failed to get the author of the last commit on branch: {}", branch).as_str())
-        .stdout;
-    String::from_utf8_lossy(&stdout).to_string()
 }
