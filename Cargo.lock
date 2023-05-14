@@ -292,6 +292,10 @@ name = "git-archive-remote-branch"
 version = "0.1.0"
 
 [[package]]
+name = "git-mark-to-delete-remote-branch"
+version = "0.1.0"
+
+[[package]]
 name = "git-show-old-branches"
 version = "0.1.0"
 dependencies = [

@@ -3,5 +3,6 @@
 members = [
     "git-archive-branch",
     "git-archive-remote-branch",
-    "git-show-old-branches"
+    "git-show-old-branches",
+    "git-mark-to-delete-remote-branch"
 ]
