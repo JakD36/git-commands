@@ -40,8 +40,8 @@ fn main()
     
     if remote_branch_name.to_lowercase().starts_with(&base)
     {
-        eprintln!("This branch already has this base");
-        process::exit(1);
+        eprintln!("The branch {} already has the base {}", args.target, base);
+        exit(1);
     }
     
     // Pull Original branch

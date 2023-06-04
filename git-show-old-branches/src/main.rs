@@ -29,17 +29,6 @@ struct CliInputs
 
 fn main()
 {
-    let git_path = if cfg!(target_os = "windows")
-    {
-        Err("Windows is not currently supported!")
-    }
-    else
-    {
-        Ok("git")
-    };
-
-    let git_path = git_path.expect("Not a supported platform");
-    
     let args = CliInputs::parse();
 
     let mode_str = match args.mode
@@ -48,7 +37,7 @@ fn main()
         Mode::NoMerge => "--no-merge"
     };
     
-    let stdout = process::Command::new(git_path)
+    let stdout = process::Command::new("git")
         .arg("for-each-ref")
         .arg("--format=%(refname:short)//%(authordate:iso)//%(authorname)")
         .arg("refs/remotes")

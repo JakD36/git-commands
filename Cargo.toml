@@ -1,8 +1,7 @@
 [workspace]
 
 members = [
-    "git-archive-branch",
+    "git-append-to-base",
     "git-append-to-base-remote",
     "git-show-old-branches",
-    "git-mark-to-delete-remote-branch",
 ]
