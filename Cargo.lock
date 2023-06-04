@@ -290,6 +290,9 @@ version = "0.1.0"
 [[package]]
 name = "git-archive-remote-branch"
 version = "0.1.0"
+dependencies = [
+ "clap",
+]
 
 [[package]]
 name = "git-mark-to-delete-remote-branch"

@@ -2,7 +2,7 @@
 
 members = [
     "git-archive-branch",
-    "git-archive-remote-branch",
+    "git-append-to-base-remote",
     "git-show-old-branches",
-    "git-mark-to-delete-remote-branch"
+    "git-mark-to-delete-remote-branch",
 ]
